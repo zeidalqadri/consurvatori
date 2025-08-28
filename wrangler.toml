@@ -1,0 +1,21 @@
+name = "consurvatori-api"
+main = "workers/src/index.js"
+compatibility_date = "2024-01-01"
+
+[env.production]
+name = "consurvatori-api"
+
+[env.preview]
+name = "consurvatori-api-preview"
+
+# Environment variables (set via wrangler secret put command)
+# SSH_HOST, SSH_PORT, SSH_USERNAME will be set as secrets
+
+# Worker settings (CPU limits require paid plan)
+# [limits]
+# cpu_ms = 50
+
+# Custom domains (optional)
+# [[env.production.routes]]
+# pattern = "api.yourdomain.com/*"
+# zone_name = "yourdomain.com"

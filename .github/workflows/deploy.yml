@@ -29,8 +29,8 @@ jobs:
       - name: Build project
         run: npm run build
         env:
-          NEXT_PUBLIC_AGENT_BASE: ${{ secrets.NEXT_PUBLIC_AGENT_BASE }}
-          NEXT_PUBLIC_AGENT_WS: ${{ secrets.NEXT_PUBLIC_AGENT_WS }}
+          NEXT_PUBLIC_AGENT_BASE: https://consurvatori-api.zeidalqadri.workers.dev
+          NEXT_PUBLIC_AGENT_WS: wss://consurvatori-api.zeidalqadri.workers.dev/ws
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
