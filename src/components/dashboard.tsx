@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Activity, Cpu, HardDrive, MemoryStick, Network, Terminal, RefreshCw, Bug, ShieldHalf, X, Search, RotateCw, AlertTriangle, ShieldAlert } from "lucide-react";
+import { Activity, Cpu, HardDrive, MemoryStick, Network, Terminal, RefreshCw, Bug, ShieldHalf, X, Search, RotateCw, AlertTriangle, ShieldAlert, ChevronDown, ChevronUp, Play, Square, Pause, FileText, Settings, BarChart3, Clock, Zap, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 
 // -------------------------------------------------------------
 // Config
@@ -52,7 +52,20 @@ interface ApplicationsResponse {
   applications: Record<string, AppEntry> // cbl_frontend, cbl_backend, cbl_mobile, guacamole
 }
 
-interface ServiceEntry { service: string; active: boolean; enabled: boolean; status: "running"|"stopped"|"unknown" }
+interface ServiceEntry { 
+  service: string; 
+  active: boolean; 
+  enabled: boolean; 
+  status: "running"|"stopped"|"unknown";
+  // Enhanced properties that may be available
+  pid?: number;
+  uptime?: string;
+  memory?: number;
+  cpu?: number;
+  user?: string;
+  description?: string;
+  last_error?: string;
+}
 interface ServicesResponse {
   healthy_count: number; unhealthy_count: number;
   services: Record<string, ServiceEntry>
@@ -390,29 +403,315 @@ function MetricsGrid({sys}:{sys:SystemResponse|null}){
   );
 }
 
-function ServicesPanel({data, onRestart, disabled}:{data:ServicesResponse|null; onRestart:(name:string)=>void; disabled?:boolean}){
+// Enhanced Service Card Component
+interface ServiceCardProps {
+  service: ServiceEntry;
+  onRestart: (name: string) => void;
+  onStart: (name: string) => void;
+  onStop: (name: string) => void;
+  onViewLogs: (name: string) => void;
+  disabled?: boolean;
+}
+
+function ServiceCard({ service, onRestart, onStart, onStop, onViewLogs, disabled }: ServiceCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  
+  const getStatusInfo = () => {
+    if (service.status === 'running') {
+      return { 
+        icon: CheckCircle, 
+        color: 'text-green-400', 
+        bg: 'bg-green-400/10', 
+        status: 'ok' as const,
+        text: 'Running'
+      };
+    } else if (service.status === 'stopped') {
+      return { 
+        icon: XCircle, 
+        color: 'text-red-400', 
+        bg: 'bg-red-400/10', 
+        status: 'crit' as const,
+        text: 'Stopped'
+      };
+    } else {
+      return { 
+        icon: AlertCircle, 
+        color: 'text-amber-400', 
+        bg: 'bg-amber-400/10', 
+        status: 'warn' as const,
+        text: 'Unknown'
+      };
+    }
+  };
+
+  const statusInfo = getStatusInfo();
+  const StatusIcon = statusInfo.icon;
+
+  return (
+    <div className="rounded-lg border border-[#1a2a2f] bg-[#0e1315] overflow-hidden">
+      {/* Main Service Info */}
+      <div className="p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 flex-1">
+            <div className={`p-1.5 rounded-full ${statusInfo.bg}`}>
+              <StatusIcon className={`h-4 w-4 ${statusInfo.color}`} />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm text-[#e6ffee] font-medium">{service.service}</span>
+                <Badge 
+                  variant="outline" 
+                  className={`text-xs ${statusInfo.color} border-current`}
+                >
+                  {statusInfo.text}
+                </Badge>
+              </div>
+              {service.description && (
+                <p className="text-xs text-[#9fe6c3]/60 mt-1">{service.description}</p>
+              )}
+              {service.last_error && service.status !== 'running' && (
+                <p className="text-xs text-red-400 mt-1 truncate">{service.last_error}</p>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            {/* Quick Actions */}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 text-[#9fe6c3] hover:bg-[#10201a]"
+              onClick={() => onViewLogs(service.service)}
+              disabled={disabled}
+              title="View logs"
+            >
+              <FileText className="h-3 w-3" />
+            </Button>
+            
+            {service.status === 'running' ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 text-amber-400 hover:bg-amber-400/10"
+                  onClick={() => onRestart(service.service)}
+                  disabled={disabled}
+                  title="Restart service"
+                >
+                  <RotateCw className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 p-0 text-red-400 hover:bg-red-400/10"
+                  onClick={() => onStop(service.service)}
+                  disabled={disabled}
+                  title="Stop service"
+                >
+                  <Square className="h-3 w-3" />
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 w-7 p-0 text-green-400 hover:bg-green-400/10"
+                onClick={() => onStart(service.service)}
+                disabled={disabled}
+                title="Start service"
+              >
+                <Play className="h-3 w-3" />
+              </Button>
+            )}
+            
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 text-[#9fe6c3] hover:bg-[#10201a]"
+              onClick={() => setExpanded(!expanded)}
+              title={expanded ? "Collapse details" : "Expand details"}
+            >
+              {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </Button>
+          </div>
+        </div>
+        
+        {/* Basic status info always visible */}
+        <div className="flex items-center gap-4 mt-2 text-xs text-[#9fe6c3]/70">
+          <div className="flex items-center gap-1">
+            <span>{service.active ? 'Active' : 'Inactive'}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span>{service.enabled ? 'Enabled' : 'Disabled'}</span>
+          </div>
+          {service.uptime && service.status === 'running' && (
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>{service.uptime}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded Details */}
+      {expanded && (
+        <div className="border-t border-[#1a2a2f] bg-[#0b1113] p-3 space-y-3">
+          {/* Resource Usage */}
+          {(service.cpu !== undefined || service.memory !== undefined) && (
+            <div>
+              <div className="text-xs text-[#9fe6c3]/80 mb-2 flex items-center gap-1">
+                <BarChart3 className="h-3 w-3" />
+                Resource Usage
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {service.cpu !== undefined && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-[#9fe6c3]/70">CPU</span>
+                      <span className="text-[#e6ffee]">{service.cpu.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-1.5 bg-[#1a2a2f] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-green-400 to-green-500 transition-all duration-300"
+                        style={{ width: `${Math.min(service.cpu, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {service.memory !== undefined && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-[#9fe6c3]/70">Memory</span>
+                      <span className="text-[#e6ffee]">{fmtB(service.memory)}</span>
+                    </div>
+                    <div className="h-1.5 bg-[#1a2a2f] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-400 to-blue-500 transition-all duration-300"
+                        style={{ width: `${Math.min((service.memory / (1024 * 1024 * 100)) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Process Information */}
+          {(service.pid || service.user) && (
+            <div>
+              <div className="text-xs text-[#9fe6c3]/80 mb-2 flex items-center gap-1">
+                <Zap className="h-3 w-3" />
+                Process Info
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {service.pid && (
+                  <div>
+                    <span className="text-[#9fe6c3]/70">PID:</span>
+                    <span className="ml-2 text-[#e6ffee] font-mono">{service.pid}</span>
+                  </div>
+                )}
+                {service.user && (
+                  <div>
+                    <span className="text-[#9fe6c3]/70">User:</span>
+                    <span className="ml-2 text-[#e6ffee] font-mono">{service.user}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Extended Actions */}
+          <div>
+            <div className="text-xs text-[#9fe6c3]/80 mb-2 flex items-center gap-1">
+              <Settings className="h-3 w-3" />
+              Actions
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs border-[#1a2a2f] text-[#9fe6c3] hover:bg-[#10201a]"
+                onClick={() => onViewLogs(service.service)}
+                disabled={disabled}
+              >
+                <FileText className="h-3 w-3 mr-1" />
+                View Logs
+              </Button>
+              {service.status === 'running' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs border-[#1a2a2f] text-amber-400 hover:bg-amber-400/10"
+                  onClick={() => onRestart(service.service)}
+                  disabled={disabled}
+                >
+                  <RotateCw className="h-3 w-3 mr-1" />
+                  Restart
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs border-[#1a2a2f] text-[#9fe6c3] hover:bg-[#10201a]"
+                disabled={disabled}
+                title="Service configuration (coming soon)"
+              >
+                <Settings className="h-3 w-3 mr-1" />
+                Configure
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ServicesPanel({
+  data, 
+  onRestart, 
+  onStart, 
+  onStop, 
+  onViewLogs, 
+  disabled
+}: {
+  data: ServicesResponse | null; 
+  onRestart: (name: string) => void;
+  onStart: (name: string) => void;
+  onStop: (name: string) => void;
+  onViewLogs: (name: string) => void;
+  disabled?: boolean;
+}) {
   const entries = Object.entries(data?.services ?? {});
+  
   return (
     <Card className="bg-[#0f1416] border-[#1a2a2f]">
-      <CardHeader className="pb-2"><CardTitle className="text-sm text-[#9fe6c3]">Services</CardTitle></CardHeader>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm text-[#9fe6c3] flex items-center gap-2">
+          Services
+          <Badge variant="outline" className="text-xs border-[#1a2a2f] text-[#9fe6c3]/70">
+            {entries.length}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
       <CardContent className="pt-0">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {entries.map(([key, s]) => {
-            const state = s.status === 'running' ? 'ok' : s.status === 'stopped' ? 'crit' : 'warn';
-            return (
-              <div key={key} className="flex items-center justify-between rounded-lg border border-[#1a2a2f] bg-[#0e1315] p-3">
-                <div className="flex items-center gap-2 text-sm text-[#e6ffee]">
-                  <Dot status={state as any}/> <span className="font-mono">{s.service}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-xs text-[#9fe6c3]/70">{s.active ? 'active' : 'inactive'}{s.enabled ? ' • enabled' : ''}</div>
-                  <Button size="sm" disabled={!!disabled} variant="outline" className="border-[#1a2a2f] text-[#9fe6c3] hover:bg-[#10201a] disabled:opacity-50" onClick={()=>onRestart(s.service)} title="Restart service">
-                    <RotateCw className="h-3 w-3"/>
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
+        <div className="space-y-3">
+          {entries.map(([key, service]) => (
+            <ServiceCard
+              key={key}
+              service={service}
+              onRestart={onRestart}
+              onStart={onStart}
+              onStop={onStop}
+              onViewLogs={onViewLogs}
+              disabled={disabled}
+            />
+          ))}
+          {entries.length === 0 && (
+            <div className="text-center py-8 text-[#9fe6c3]/50">
+              No services found
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -566,6 +865,288 @@ function SecurityPanel({data}:{data:SecurityResponse|null}){
           </table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ---------- Confirmation Dialog ----------
+interface ConfirmationDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  description: string;
+  confirmText?: string;
+  confirmVariant?: 'default' | 'destructive';
+  loading?: boolean;
+}
+
+function ConfirmationDialog({ 
+  open, 
+  onClose, 
+  onConfirm, 
+  title, 
+  description, 
+  confirmText = 'Confirm', 
+  confirmVariant = 'default',
+  loading = false 
+}: ConfirmationDialogProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative w-full max-w-md rounded-xl border border-[#1a2a2f] bg-[#0f1416] shadow-xl">
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className={`p-2 rounded-full ${confirmVariant === 'destructive' ? 'bg-red-400/10' : 'bg-amber-400/10'}`}>
+              <AlertTriangle className={`h-5 w-5 ${confirmVariant === 'destructive' ? 'text-red-400' : 'text-amber-400'}`} />
+            </div>
+            <h2 className="text-lg font-semibold text-[#e6ffee]">{title}</h2>
+          </div>
+          
+          <p className="text-[#9fe6c3]/80 mb-6 leading-relaxed">{description}</p>
+          
+          <div className="flex gap-3 justify-end">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              disabled={loading}
+              className="border-[#1a2a2f] text-[#9fe6c3] hover:bg-[#10201a]"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={onConfirm}
+              disabled={loading}
+              variant={confirmVariant === 'destructive' ? 'destructive' : 'default'}
+              className={confirmVariant === 'destructive' ? 
+                'bg-red-600 hover:bg-red-700 text-white' : 
+                'bg-[#00ff9c] hover:bg-[#0bd47a] text-[#0b0f10]'
+              }
+            >
+              {loading && <RefreshCw className="h-3 w-3 mr-2 animate-spin" />}
+              {confirmText}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Service Log Viewer Modal ----------
+interface ServiceLogViewerProps {
+  serviceName: string | null;
+  onClose: () => void;
+}
+
+function ServiceLogViewer({ serviceName, onClose }: ServiceLogViewerProps) {
+  const [logs, setLogs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [following, setFollowing] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const logsEndRef = useRef<HTMLDivElement>(null);
+  const abortController = useRef<AbortController | null>(null);
+
+  const scrollToBottom = () => {
+    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    if (following) {
+      scrollToBottom();
+    }
+  }, [logs, following]);
+
+  useEffect(() => {
+    if (!serviceName) return;
+
+    const fetchLogs = async () => {
+      setLoading(true);
+      setLogs([]);
+      
+      try {
+        abortController.current = new AbortController();
+        const response = await fetch(`${BASE}/api/services/${serviceName}/logs?lines=100`, {
+          signal: abortController.current.signal
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch logs: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        setLogs(data.logs || [`No logs available for ${serviceName}`]);
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          console.error('Error fetching logs:', error);
+          setLogs([`Error fetching logs: ${error.message}`]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLogs();
+
+    return () => {
+      abortController.current?.abort();
+    };
+  }, [serviceName]);
+
+  // Simulate real-time log updates (in a real implementation, this would be via WebSocket)
+  useEffect(() => {
+    if (!serviceName || !following) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`${BASE}/api/services/${serviceName}/logs?lines=10&since=1m`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.logs && data.logs.length > 0) {
+            setLogs(prev => [...prev, ...data.logs].slice(-1000)); // Keep last 1000 lines
+          }
+        }
+      } catch (error) {
+        // Silently fail for real-time updates
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [serviceName, following]);
+
+  const filteredLogs = useMemo(() => {
+    if (!searchTerm) return logs;
+    return logs.filter(log => 
+      log.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [logs, searchTerm]);
+
+  const downloadLogs = () => {
+    const content = logs.join('\n');
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${serviceName}-logs.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (!serviceName) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative w-full max-w-6xl max-h-[90vh] rounded-xl border border-[#1a2a2f] bg-[#0f1416] shadow-xl flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a2a2f]">
+          <div className="flex items-center gap-3">
+            <FileText className="h-5 w-5 text-[#00ff9c]" />
+            <div>
+              <h2 className="text-lg font-medium text-[#e6ffee]">Service Logs</h2>
+              <p className="text-sm text-[#9fe6c3]/70">{serviceName}</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-[#1a2a2f] text-[#9fe6c3] hover:bg-[#10201a]"
+              onClick={downloadLogs}
+              disabled={logs.length === 0}
+            >
+              <Activity className="h-3 w-3 mr-2" />
+              Export
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onClose}>
+              <X className="h-4 w-4 text-[#9fe6c3]" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-4 px-6 py-3 border-b border-[#1a2a2f] bg-[#0e1315]">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9fe6c3]/50" />
+            <input
+              type="text"
+              placeholder="Search logs..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-[#0f1416] border border-[#1a2a2f] rounded-md text-sm text-[#e6ffee] placeholder:text-[#9fe6c3]/50 focus:outline-none focus:ring-2 focus:ring-[#00ff9c]/20 focus:border-[#00ff9c]/30"
+            />
+          </div>
+          
+          <Button
+            size="sm"
+            variant="outline"
+            className={`border-[#1a2a2f] ${following ? 'bg-[#00ff9c]/10 text-[#00ff9c] border-[#00ff9c]/30' : 'text-[#9fe6c3] hover:bg-[#10201a]'}`}
+            onClick={() => setFollowing(!following)}
+          >
+            {following ? 'Following' : 'Follow'}
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-[#1a2a2f] text-[#9fe6c3] hover:bg-[#10201a]"
+            onClick={() => {
+              setLogs([]);
+              // Refetch logs
+              if (serviceName) {
+                fetch(`${BASE}/api/services/${serviceName}/logs?lines=100`)
+                  .then(res => res.json())
+                  .then(data => setLogs(data.logs || []));
+              }
+            }}
+          >
+            <RefreshCw className="h-3 w-3 mr-2" />
+            Refresh
+          </Button>
+        </div>
+
+        {/* Logs Content */}
+        <div className="flex-1 overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center h-40 text-[#9fe6c3]/70">
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Loading logs...
+            </div>
+          ) : (
+            <div className="h-full overflow-auto font-mono text-xs bg-[#0b0f10] p-4">
+              {filteredLogs.length > 0 ? (
+                <div className="space-y-1">
+                  {filteredLogs.map((log, index) => (
+                    <div
+                      key={index}
+                      className="text-[#e6ffee]/90 hover:bg-[#1a2a2f]/30 px-2 py-1 rounded whitespace-pre-wrap break-all"
+                    >
+                      {log}
+                    </div>
+                  ))}
+                  <div ref={logsEndRef} />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full text-[#9fe6c3]/50">
+                  {searchTerm ? `No logs matching "${searchTerm}"` : 'No logs available'}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t border-[#1a2a2f] bg-[#0e1315] text-xs text-[#9fe6c3]/70">
+          Showing {filteredLogs.length} lines
+          {searchTerm && ` (filtered from ${logs.length})`}
+          {following && (
+            <span className="ml-4 text-[#00ff9c]">● Live</span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -867,17 +1448,6 @@ export default function SSHSJEDashboard(){
 
   useAgentSocket(onSocket, true);
 
-  // Dev helper: if agent is down, allow mock
-  const [mock, setMock] = useState(false);
-  useEffect(()=>{ if (sys.error && services.error && containers.error) setMock(true); }, [sys.error, services.error, containers.error]);
-  useEffect(()=>{
-    if (!mock) return;
-    const id = setInterval(()=>{
-      const base = Date.now();
-      setRt(prev => [...prev.slice(-maxPoints), { t: base, cpu: 20+Math.random()*40, mem: 35+Math.random()*25, disk: 50+Math.random()*10, load: 0.5+Math.random()*1.2 }]);
-    }, 3000);
-    return ()=>clearInterval(id);
-  }, [mock]);
 
   const handleRestartContainer = async (name:string) => {
     try { await postJSON("/api/actions/restart", { type: "container", name }); toast.success(`Restarted container ${name}`); containers.refetch(); }
@@ -887,6 +1457,78 @@ export default function SSHSJEDashboard(){
     try { await postJSON("/api/actions/restart", { type: "service", name }); toast.success(`Restarted service ${name}`); services.refetch(); }
     catch(e:any){ toast.error(e.message ?? 'Restart failed'); }
   };
+  
+  const handleStartService = async (name:string) => {
+    try { await postJSON("/api/actions/start", { type: "service", name }); toast.success(`Started service ${name}`); services.refetch(); }
+    catch(e:any){ toast.error(e.message ?? 'Start failed'); }
+  };
+  
+  const handleStopService = async (name:string) => {
+    try { await postJSON("/api/actions/stop", { type: "service", name }); toast.success(`Stopped service ${name}`); services.refetch(); }
+    catch(e:any){ toast.error(e.message ?? 'Stop failed'); }
+  };
+  
+  // Wrapper functions with confirmation dialogs
+  const confirmRestartService = (name: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Restart Service',
+      description: `Are you sure you want to restart the "${name}" service? This may cause temporary downtime.`,
+      confirmText: 'Restart',
+      confirmVariant: 'default',
+      loading: false,
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, loading: true }));
+        try {
+          await handleRestartService(name);
+          setConfirmDialog(prev => ({ ...prev, open: false, loading: false }));
+        } catch (error) {
+          setConfirmDialog(prev => ({ ...prev, loading: false }));
+        }
+      }
+    });
+  };
+  
+  const confirmStopService = (name: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Stop Service',
+      description: `Are you sure you want to stop the "${name}" service? This will make the service unavailable until manually started.`,
+      confirmText: 'Stop',
+      confirmVariant: 'destructive',
+      loading: false,
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, loading: true }));
+        try {
+          await handleStopService(name);
+          setConfirmDialog(prev => ({ ...prev, open: false, loading: false }));
+        } catch (error) {
+          setConfirmDialog(prev => ({ ...prev, loading: false }));
+        }
+      }
+    });
+  };
+  
+  const confirmStartService = (name: string) => {
+    setConfirmDialog({
+      open: true,
+      title: 'Start Service',
+      description: `Are you sure you want to start the "${name}" service?`,
+      confirmText: 'Start',
+      confirmVariant: 'default',
+      loading: false,
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, loading: true }));
+        try {
+          await handleStartService(name);
+          setConfirmDialog(prev => ({ ...prev, open: false, loading: false }));
+        } catch (error) {
+          setConfirmDialog(prev => ({ ...prev, loading: false }));
+        }
+      }
+    });
+  };
+  
   const handleResolve = async (id:string) => {
     try { await postJSON("/api/actions/resolve", { issue_id: id }); toast.success(`Resolved ${id}`); diag.refetch(); }
     catch(e:any){ toast.error(e.message ?? 'Resolve failed'); }
@@ -894,6 +1536,28 @@ export default function SSHSJEDashboard(){
 
   // Issue modal
   const [openIssue, setOpenIssue] = useState<DiagnosticIssue|null>(null);
+  
+  // Service log viewer
+  const [logViewerService, setLogViewerService] = useState<string | null>(null);
+  
+  // Confirmation dialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    confirmText: string;
+    confirmVariant: 'default' | 'destructive';
+    onConfirm: () => void;
+    loading: boolean;
+  }>({
+    open: false,
+    title: '',
+    description: '',
+    confirmText: 'Confirm',
+    confirmVariant: 'default',
+    onConfirm: () => {},
+    loading: false
+  });
   useEffect(()=>{
     const onResolveEvt = (e:any)=>{ if (e?.detail?.id) handleResolve(e.detail.id); };
     window.addEventListener('resolve-issue', onResolveEvt as any);
@@ -997,10 +1661,6 @@ export default function SSHSJEDashboard(){
               <ShieldAlert className="h-3 w-3 mr-2"/> Safe‑Mode
             </Button>
             <div className="hidden sm:flex items-center gap-2 text-xs text-[#9fe6c3]/80"><kbd className="px-1.5 py-0.5 rounded border border-[#1a2a2f] bg-[#0e1315]">⌘/Ctrl</kbd> + <kbd className="px-1.5 py-0.5 rounded border border-[#1a2a2f] bg-[#0e1315]">K</kbd> <span className="ml-1">God‑Mode</span></div>
-            <div className="flex items-center gap-2 text-xs text-[#9fe6c3]/80">
-              <span>Mock if down</span>
-              <Switch checked={mock} onCheckedChange={setMock}/>
-            </div>
             <Button variant="outline" className="border-[#1a2a2f] text-[#9fe6c3] hover:bg-[#10201a]" onClick={()=>{ sys.refetch(); services.refetch(); containers.refetch(); apps.refetch(); security.refetch(); diag.refetch(); history.refetch(); }} disabled={actionsDisabled}>
               <RefreshCw className="h-3 w-3 mr-2"/> Refresh
             </Button>
@@ -1018,7 +1678,14 @@ export default function SSHSJEDashboard(){
           </div>
           <MetricsGrid sys={sys.data as any}/>
           <div className="grid gap-3 mt-3 lg:grid-cols-2">
-            <ServicesPanel data={services.data as any} onRestart={handleRestartService} disabled={actionsDisabled}/>
+            <ServicesPanel 
+              data={services.data as any} 
+              onRestart={confirmRestartService} 
+              onStart={confirmStartService}
+              onStop={confirmStopService}
+              onViewLogs={setLogViewerService}
+              disabled={actionsDisabled}
+            />
             <AppsPanel data={apps.data as any}/>
           </div>
           <div className="mt-3">
@@ -1070,6 +1737,17 @@ export default function SSHSJEDashboard(){
 
       {/* Modals */}
       <IssueModal issue={openIssue} onClose={()=>setOpenIssue(null)} history={history.data as any}/>
+      <ServiceLogViewer serviceName={logViewerService} onClose={() => setLogViewerService(null)} />
+      <ConfirmationDialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmText={confirmDialog.confirmText}
+        confirmVariant={confirmDialog.confirmVariant}
+        loading={confirmDialog.loading}
+      />
       <SafeModeModal open={safeOpen} onClose={()=>setSafeOpen(false)} plan={plan} setPlan={setPlan} running={running} logs={logs} onStart={startGuided} onExit={()=>{ setSafeActive(false); setSafeOpen(false); }}/>
 
       {/* Command Palette */}
