@@ -37,7 +37,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: sshsshje-dashboard
+          projectName: cnsrvtr
           directory: out
           # Optional: github token
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
